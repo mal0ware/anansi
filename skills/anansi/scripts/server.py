@@ -33,7 +33,10 @@ MEDIA_TTL_HOURS = 24
 WORKERS = 4
 WEB_DIR = Path(__file__).resolve().parent
 
-FORMAT_MERGED = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+# H.264 first: AV1/VP9 mp4s won't play in QuickTime on older Macs or in
+# many Windows players. H.264 tops out at 1080p, which is fine for most uses.
+FORMAT_MERGED = ("bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]"
+                 "/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best")
 FORMAT_SINGLE = "best[ext=mp4]/best"
 FORMAT_AUDIO = "bestaudio[ext=m4a]/bestaudio"  # no ffmpeg needed
 
@@ -159,6 +162,8 @@ def parse_header(document: str) -> dict:
 def classify_stderr(e: str) -> str:
     if "HTTP Error 429" in e or "Too Many Requests" in e:
         return "rate-limited by YouTube (429) — switch network or wait"
+    if "HTTP Error 403" in e:
+        return "YouTube refused the stream (403) — usually temporary; try again in a minute"
     if "Sign in to confirm" in e:
         return "YouTube wants a sign-in check (bot detection) — try another network"
     for s in ("Private video", "Video unavailable", "This video is unavailable",
@@ -297,6 +302,9 @@ def fetch_document(ytdlp: str, vid: str) -> str:
         shutil.rmtree(workdir, ignore_errors=True)
 
 
+DOWNLOAD_ATTEMPTS = 3
+
+
 def download_media(ytdlp: str, vid: str, kind: str, outdir: Path, on_progress=None) -> Path:
     """Download one video's "video" (mp4) or "audio" (m4a) into outdir and
     return the file path. on_progress(percent, stage) is called as it goes.
@@ -304,6 +312,25 @@ def download_media(ytdlp: str, vid: str, kind: str, outdir: Path, on_progress=No
     report = on_progress or (lambda pct, stage: None)
     outdir.mkdir(parents=True, exist_ok=True)
     ffmpeg = shutil.which("ffmpeg") is not None
+    for _ in range(DOWNLOAD_ATTEMPTS):
+        path, err = _download_once(ytdlp, vid, kind, outdir, ffmpeg, report)
+        if path:
+            return path
+        # YouTube sometimes revokes a stream URL mid-download (403). A fresh
+        # run gets new URLs and resumes the .part file, so retry; other
+        # failures (private, removed, 429) won't change on a retry.
+        if "HTTP Error 403" not in err:
+            break
+    msg = classify_stderr(err)
+    if kind == "video" and not ffmpeg and "Requested format is not available" in err:
+        # YouTube mostly serves separate video/audio streams now; joining
+        # them needs ffmpeg.
+        msg = "video needs ffmpeg — install it (macOS: brew install ffmpeg), no restart needed"
+    raise RuntimeError(msg)
+
+
+def _download_once(ytdlp: str, vid: str, kind: str, outdir: Path, ffmpeg: bool, report):
+    """One yt-dlp run: (path, "") on success, (None, stderr) on failure."""
     if kind == "audio":
         fmt = FORMAT_AUDIO
     else:
@@ -320,7 +347,7 @@ def download_media(ytdlp: str, vid: str, kind: str, outdir: Path, on_progress=No
         p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                              text=True, encoding="utf-8", errors="replace")
     except OSError as e:
-        raise RuntimeError(str(e)) from None
+        return None, str(e)
     err_chunks: list[str] = []
     t = threading.Thread(target=lambda: err_chunks.append(p.stderr.read()), daemon=True)
     t.start()
@@ -341,14 +368,8 @@ def download_media(ytdlp: str, vid: str, kind: str, outdir: Path, on_progress=No
     p.wait()
     t.join(timeout=5)
     if p.returncode == 0 and path and Path(path).is_file():
-        return Path(path)
-    err = "".join(err_chunks)
-    msg = classify_stderr(err)
-    if kind == "video" and not ffmpeg and "Requested format is not available" in err:
-        # YouTube mostly serves separate video/audio streams now; joining
-        # them needs ffmpeg.
-        msg = "video needs ffmpeg — install it (macOS: brew install ffmpeg), no restart needed"
-    raise RuntimeError(msg)
+        return Path(path), ""
+    return None, "".join(err_chunks)
 
 
 # ─── Jobs ───────────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 {
   "name": "anansi",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "YouTube links in, transcripts, video and audio out. Claude fetches full timestamped transcripts (with title, channel, chapters and description), searches YouTube, and downloads mp4/m4a — automatically whenever you share a video.",
   "author": {
     "name": "Marius Castillo",

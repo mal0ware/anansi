@@ -101,5 +101,30 @@ class Fetch(unittest.TestCase):
         self.assertIn("timed out", out)
 
 
+class Download(unittest.TestCase):
+    def test_prefers_h264_for_playback_everywhere(self):
+        self.assertTrue(core.FORMAT_MERGED.startswith("bestvideo[ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]"))
+        self.assertIn("bestvideo[ext=mp4]+bestaudio[ext=m4a]", core.FORMAT_MERGED)  # fallback kept
+
+    def test_403_is_named_and_retried(self):
+        self.assertIn("403", core.classify_stderr("ERROR: unable to download video data: HTTP Error 403: Forbidden"))
+        calls = []
+
+        def once(*a, **kw):
+            calls.append(1)
+            if len(calls) == 1:
+                return None, "ERROR: unable to download video data: HTTP Error 403: Forbidden"
+            return Path("/tmp/x.mp4"), ""
+        with mock.patch.object(core, "_download_once", side_effect=once):
+            self.assertEqual(core.download_media("yt", "dQw4w9WgXcQ", "video", Path("/tmp")), Path("/tmp/x.mp4"))
+        self.assertEqual(len(calls), 2)
+
+    def test_other_errors_not_retried(self):
+        with mock.patch.object(core, "_download_once", return_value=(None, "ERROR: Private video")) as once:
+            with self.assertRaisesRegex(RuntimeError, "video unavailable"):
+                core.download_media("yt", "dQw4w9WgXcQ", "video", Path("/tmp"))
+        self.assertEqual(once.call_count, 1)
+
+
 if __name__ == "__main__":
     unittest.main()
