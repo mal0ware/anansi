@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# anansi — run the CLI straight from a clone (no plugin needed):
+#   ./anansi fetch <links>   ./anansi web   ./anansi --help
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec python3 "$HERE/skills/anansi/scripts/anansi.py" "$@"

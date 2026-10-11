@@ -1,0 +1,15 @@
+{
+  "name": "anansi",
+  "description": "Anansi: the spider who brought the world's stories back. YouTube transcripts, search and downloads for Claude Code.",
+  "owner": {
+    "name": "Marius Castillo",
+    "url": "https://github.com/mal0ware"
+  },
+  "plugins": [
+    {
+      "name": "anansi",
+      "source": "./",
+      "description": "YouTube links in, transcripts, video and audio out — Claude uses it automatically whenever you share a video."
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "anansi",
+  "version": "1.0.0",
+  "description": "YouTube links in, transcripts, video and audio out. Claude fetches full timestamped transcripts (with title, channel, chapters and description), searches YouTube, and downloads mp4/m4a — automatically whenever you share a video.",
+  "author": {
+    "name": "Marius Castillo",
+    "url": "https://github.com/mal0ware"
+  },
+  "homepage": "https://github.com/mal0ware/anansi",
+  "repository": "https://github.com/mal0ware/anansi",
+  "license": "MIT",
+  "keywords": ["youtube", "transcript", "yt-dlp", "video", "audio", "research", "skill"]
+}
